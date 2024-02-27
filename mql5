@@ -1,0 +1,117 @@
+mql5
+//+------------------------------------------------------------------+
+//|                        Mini Gold Super Demarker MT4              |
+//|                              forexroboteasy.com                   |
+//|                       Forex Robot Easy Team                       |
+//+------------------------------------------------------------------+
+
+// Include necessary libraries and indicators
+#include <MovingAverages.mqh>
+#include <ForceIndex.mqh>
+#include <DeMarker.mqh>
+
+// Define input parameters for strategy customization
+input int maPeriod = 20; // Moving average period
+input int forceIndexPeriod = 13; // Force index period
+input int demarkerPeriod = 14; // DeMarker period
+input double thresholdLevel = 0.7; // Threshold level for overbought and oversold conditions
+
+// Define global variables
+double lots = 0.01; // Initial trade size
+double totalProfit = 0.0; // Total profit
+bool martingaleEnabled = true; // Enable/disable martingale technique
+
+// Initialize indicators
+MovingAverage ma;
+ForceIndex forceIndex;
+DeMarker demarker;
+
+//+------------------------------------------------------------------+
+//| Custom initialization function                                    |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+    // Initialize Moving Average indicator
+    ma.Create(_Symbol, _Period, maPeriod, MODE_SMA, PRICE_CLOSE);
+
+    // Initialize Force Index indicator
+    forceIndex.Create(_Symbol, _Period, forceIndexPeriod);
+
+    // Initialize DeMarker indicator
+    demarker.Create(_Symbol, _Period, demarkerPeriod);
+
+    return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Custom start function                                             |
+//+------------------------------------------------------------------+
+void OnStart()
+{
+    // Calculate indicators' values
+    double maValue = ma.iMA(_Symbol, _Period, maPeriod, 0, MODE_SMA, PRICE_CLOSE, 0);
+    double forceIndexValue = forceIndex.iForceIndex(_Symbol, _Period, forceIndexPeriod, 0);
+    double demarkerValue = demarker.iDeMarker(_Symbol, _Period, demarkerPeriod, 0);
+
+    // Check for overbought and oversold conditions
+    bool isOverbought = (demarkerValue > thresholdLevel);
+    bool isOversold = (demarkerValue < (1 - thresholdLevel));
+
+    // Execute trades based on grid technique
+    if (isOverbought)
+    {
+        OpenSellOrder();
+    }
+    else if (isOversold)
+    {
+        OpenBuyOrder();
+    }
+}
+
+//+------------------------------------------------------------------+
+//| Function to open a sell order                                     |
+//+------------------------------------------------------------------+
+void OpenSellOrder()
+{
+    double stopLoss = Ask + 100 * _Point; // Define stop loss level
+    double takeProfit = Bid - 200 * _Point; // Define take profit level
+
+    if (OrderSend(_Symbol, OP_SELL, lots, Bid, 0, stopLoss, takeProfit, 'Sell Order', 0, 0, Red))
+    {
+        totalProfit -= OrderProfit();
+        if (martingaleEnabled)
+        {
+            lots *= 2; // Double the trade size for martingale technique
+        }
+    }
+}
+
+//+------------------------------------------------------------------+
+//| Function to open a buy order                                      |
+//+------------------------------------------------------------------+
+void OpenBuyOrder()
+{
+    double stopLoss = Bid - 100 * _Point; // Define stop loss level
+    double takeProfit = Ask + 200 * _Point; // Define take profit level
+
+    if (OrderSend(_Symbol, OP_BUY, lots, Ask, 0, stopLoss, takeProfit, 'Buy Order', 0, 0, Green))
+    {
+        totalProfit += OrderProfit();
+        if (martingaleEnabled)
+        {
+            lots *= 2; // Double the trade size for martingale technique
+        }
+    }
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to handle trade closure                           |
+//+------------------------------------------------------------------+
+void OnTrade()
+{
+    if (OrdersTotal() == 0)
+    {
+        // Print total profit
+        Print('Total Profit: ', totalProfit);
+    }
+}
